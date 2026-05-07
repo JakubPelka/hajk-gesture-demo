@@ -3,10 +3,10 @@
 
   const WS_URL = "ws://127.0.0.1:8765";
   const RECONNECT_DELAY_MS = 1500;
-  const PAN_SENSITIVITY = 1.0;
-  const ZOOM_STEP = 1;
-  const ZOOM_ANIMATION_MS = 120;
-  const PAN_ANIMATION_MS = 40;
+  const PAN_SENSITIVITY = 2.5;
+  const ZOOM_STEP = 0.25;
+  const ZOOM_ANIMATION_MS = 80;
+  const PAN_ANIMATION_MS = 20;
 
   let socket = null;
   let reconnectTimer = null;

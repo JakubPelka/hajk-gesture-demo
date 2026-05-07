@@ -1,2 +1,4 @@
 /.venv
 python/__pycache__/gesture_state.cpython-312.pyc
+python/__pycache__/video_stream_server.cpython-312.pyc
+python/__pycache__/command_server.cpython-312.pyc
