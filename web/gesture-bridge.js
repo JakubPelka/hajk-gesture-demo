@@ -19,7 +19,11 @@
     active: document.getElementById("gesture-active"),
     detected: document.getElementById("gesture-detected"),
     stable: document.getElementById("gesture-stable"),
-    fps: document.getElementById("gesture-fps")
+    fps: document.getElementById("gesture-fps"),
+    videoClients: document.getElementById("gesture-video-clients"),
+    btnToggleActive: document.getElementById("btn-toggle-active"),
+    btnResetMap: document.getElementById("btn-reset-map"),
+    btnQuit: document.getElementById("btn-quit")
   };
 
   function getDemoState() {
@@ -116,6 +120,7 @@
       setText(elements.detected, command.detected_gesture || "None");
       setText(elements.stable, command.stable_gesture || "None");
       setText(elements.fps, command.fps ?? "-");
+      setText(elements.videoClients, command.video_clients ?? "-");
     }
 
     if (command.type === "active") {
@@ -229,6 +234,20 @@
     });
   }
 
+  function sendControl(action) {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      setText(elements.lastCommand, "Cannot send control: WebSocket not connected");
+      return;
+    }
+
+    socket.send(
+      JSON.stringify({
+        type: "control",
+        action: action
+      })
+    );
+  }
+
   function formatCommand(command) {
     if (!command || !command.type) {
       return "None";
@@ -267,10 +286,43 @@
 
   function setupKeyboardShortcuts() {
     window.addEventListener("keydown", function (event) {
+      if (event.key === "a" || event.key === "A") {
+        sendControl("toggle_active");
+        event.preventDefault();
+        return;
+      }
+
       if (event.key === "r" || event.key === "R") {
         resetView();
+        event.preventDefault();
+        return;
+      }
+
+      if (event.key === "q" || event.key === "Q" || event.key === "Escape") {
+        sendControl("quit");
+        event.preventDefault();
       }
     });
+  }
+
+  function setupButtons() {
+    if (elements.btnToggleActive) {
+      elements.btnToggleActive.addEventListener("click", function () {
+        sendControl("toggle_active");
+      });
+    }
+
+    if (elements.btnResetMap) {
+      elements.btnResetMap.addEventListener("click", function () {
+        resetView();
+      });
+    }
+
+    if (elements.btnQuit) {
+      elements.btnQuit.addEventListener("click", function () {
+        sendControl("quit");
+      });
+    }
   }
 
   function setupConnectionHealthCheck() {
@@ -288,6 +340,7 @@
   }
 
   setupKeyboardShortcuts();
+  setupButtons();
   setupConnectionHealthCheck();
   connect();
 })();

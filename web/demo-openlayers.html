@@ -31,8 +31,8 @@
       top: 16px;
       left: 16px;
       z-index: 1000;
-      min-width: 320px;
-      max-width: 420px;
+      width: 360px;
+      max-height: calc(100vh - 32px);
       padding: 12px 14px;
       background: rgba(0, 0, 0, 0.78);
       color: #ffffff;
@@ -40,6 +40,7 @@
       font-size: 13px;
       line-height: 1.45;
       box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+      overflow-y: auto;
     }
 
     .debug-panel h1 {
@@ -79,6 +80,54 @@
       color: #ff8c8c;
     }
 
+    .camera-panel {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      z-index: 1000;
+      width: 420px;
+      padding: 10px;
+      background: rgba(0, 0, 0, 0.78);
+      color: #ffffff;
+      border-radius: 8px;
+      font-size: 13px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    }
+
+    .camera-panel h2 {
+      margin: 0 0 8px 0;
+      font-size: 15px;
+    }
+
+    .camera-preview {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 6px;
+      background: #111111;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 7px 10px;
+      border: 0;
+      border-radius: 6px;
+      cursor: pointer;
+      background: #ffffff;
+      color: #111111;
+      font-weight: 600;
+    }
+
+    button:hover {
+      background: #dddddd;
+    }
+
     .help {
       margin-top: 10px;
       padding-top: 8px;
@@ -96,6 +145,10 @@
       color: #222;
       border-radius: 6px;
       font-size: 12px;
+    }
+
+    code {
+      color: #ffffff;
     }
   </style>
 </head>
@@ -141,10 +194,37 @@
       <span id="gesture-fps" class="debug-value">-</span>
     </div>
 
+    <div class="debug-row">
+      <span class="debug-label">Video clients</span>
+      <span id="gesture-video-clients" class="debug-value">-</span>
+    </div>
+
     <div class="help">
-      Start Python with <code>start.bat</code>, then press <strong>A</strong> in the camera window to activate gesture control.
+      Keyboard in browser:
       <br />
-      Browser shortcut: <strong>R</strong> resets the map view.
+      <strong>A</strong> active/inactive,
+      <strong>R</strong> reset map,
+      <strong>Q</strong> or <strong>ESC</strong> quit Python app.
+    </div>
+  </div>
+
+  <div class="camera-panel">
+    <h2>Camera preview</h2>
+    <img
+      id="camera-preview"
+      class="camera-preview"
+      src="http://127.0.0.1:8766/video"
+      alt="Camera preview stream"
+    />
+
+    <div class="button-row">
+      <button id="btn-toggle-active" type="button">Toggle active (A)</button>
+      <button id="btn-reset-map" type="button">Reset map (R)</button>
+      <button id="btn-quit" type="button">Quit Python (Q)</button>
+    </div>
+
+    <div class="help">
+      Keep this browser tab focused if you want keyboard shortcuts to work.
     </div>
   </div>
 

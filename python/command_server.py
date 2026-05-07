@@ -1,5 +1,6 @@
 import asyncio
 import json
+import queue
 import threading
 from typing import Any
 
@@ -20,6 +21,7 @@ class CommandServer:
         self._server = None
         self._clients: set[Any] = set()
         self._started = threading.Event()
+        self._incoming_messages: queue.Queue[dict[str, Any]] = queue.Queue()
 
         self.last_error: str | None = None
 
@@ -72,6 +74,17 @@ class CommandServer:
             self._loop,
         )
 
+    def get_incoming_messages(self) -> list[dict[str, Any]]:
+        messages: list[dict[str, Any]] = []
+
+        while True:
+            try:
+                messages.append(self._incoming_messages.get_nowait())
+            except queue.Empty:
+                break
+
+        return messages
+
     def _run_loop(self) -> None:
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
@@ -109,10 +122,23 @@ class CommandServer:
                     }
                 )
             )
-            await websocket.wait_closed()
+
+            async for raw_message in websocket:
+                self._handle_incoming_message(raw_message)
 
         finally:
             self._clients.discard(websocket)
+
+    def _handle_incoming_message(self, raw_message: str) -> None:
+        try:
+            message = json.loads(raw_message)
+        except json.JSONDecodeError:
+            message = {
+                "type": "invalid",
+                "raw": raw_message,
+            }
+
+        self._incoming_messages.put(message)
 
     async def _broadcast(self, payload: str) -> None:
         if not self._clients:
