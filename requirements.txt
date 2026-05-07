@@ -1,0 +1,4 @@
+# Stage 0 dependencies
+# Camera preview only. MediaPipe and WebSocket dependencies will be added later.
+
+opencv-python>=4.9.0,<5.0.0
