@@ -146,6 +146,60 @@
       border-radius: 6px;
       font-size: 12px;
     }
+	
+	.laser-pointer {
+	  position: absolute;
+	  left: 50%;
+	  top: 50%;
+	  z-index: 2000;
+	  width: 22px;
+	  height: 22px;
+	  margin-left: -11px;
+	  margin-top: -11px;
+	  pointer-events: none;
+	  border: 3px solid rgba(255, 40, 40, 0.95);
+	  border-radius: 50%;
+	  box-shadow:
+		0 0 10px rgba(255, 0, 0, 0.9),
+		0 0 22px rgba(255, 0, 0, 0.55);
+	  opacity: 0;
+	  transform: scale(0.7);
+	  transition:
+		opacity 80ms linear,
+		transform 80ms linear,
+		left 40ms linear,
+		top 40ms linear;
+	}
+
+	.laser-pointer.visible {
+	  opacity: 1;
+	  transform: scale(1);
+	}
+
+	.click-ripple {
+	  position: absolute;
+	  z-index: 1999;
+	  width: 16px;
+	  height: 16px;
+	  margin-left: -8px;
+	  margin-top: -8px;
+	  pointer-events: none;
+	  border: 3px solid rgba(255, 220, 0, 0.95);
+	  border-radius: 50%;
+	  animation: click-ripple-animation 550ms ease-out forwards;
+	}
+
+	@keyframes click-ripple-animation {
+	  from {
+		opacity: 1;
+		transform: scale(0.6);
+	  }
+
+	  to {
+		opacity: 0;
+		transform: scale(4.5);
+	  }
+	}
 
     code {
       color: #ffffff;
@@ -155,7 +209,7 @@
 
 <body>
   <div id="map"></div>
-
+  <div id="laser-pointer" class="laser-pointer"></div>
   <div class="debug-panel">
     <h1>Hajk Gesture Demo</h1>
 

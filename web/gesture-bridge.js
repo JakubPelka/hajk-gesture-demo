@@ -7,10 +7,12 @@
   const ZOOM_STEP = 1;
   const ZOOM_ANIMATION_MS = 800;
   const PAN_ANIMATION_MS = 20;
+  const POINTER_HIDE_TIMEOUT_MS = 350;
 
   let socket = null;
   let reconnectTimer = null;
   let lastMessageTime = null;
+  let lastPointerTime = null;
 
   const elements = {
     wsStatus: document.getElementById("gesture-ws-status"),
@@ -21,6 +23,8 @@
     stable: document.getElementById("gesture-stable"),
     fps: document.getElementById("gesture-fps"),
     videoClients: document.getElementById("gesture-video-clients"),
+    pointer: document.getElementById("gesture-pointer"),
+    laserPointer: document.getElementById("laser-pointer"),
     btnToggleActive: document.getElementById("btn-toggle-active"),
     btnResetMap: document.getElementById("btn-reset-map"),
     btnQuit: document.getElementById("btn-quit")
@@ -73,6 +77,7 @@
 
     socket.addEventListener("close", function () {
       setStatus("disconnected", "status-error");
+      hidePointer();
       scheduleReconnect();
     });
 
@@ -121,6 +126,15 @@
       setText(elements.stable, command.stable_gesture || "None");
       setText(elements.fps, command.fps ?? "-");
       setText(elements.videoClients, command.video_clients ?? "-");
+
+      if (command.pointer_visible) {
+        setText(
+          elements.pointer,
+          "x=" + formatNumber(command.pointer_x) + " y=" + formatNumber(command.pointer_y)
+        );
+      } else {
+        setText(elements.pointer, "hidden");
+      }
     }
 
     if (command.type === "active") {
@@ -145,6 +159,16 @@
 
     if (command.type === "reset") {
       resetView();
+      return;
+    }
+
+    if (command.type === "pointer") {
+      handlePointer(command);
+      return;
+    }
+
+    if (command.type === "click") {
+      handleClick(command);
     }
   }
 
@@ -216,6 +240,81 @@
     });
   }
 
+  function handlePointer(command) {
+    if (!command.visible) {
+      hidePointer();
+      return;
+    }
+
+    const x = Number(command.x);
+    const y = Number(command.y);
+
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      hidePointer();
+      return;
+    }
+
+    showPointer(x, y);
+  }
+
+  function handleClick(command) {
+    const x = Number(command.x);
+    const y = Number(command.y);
+
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return;
+    }
+
+    showPointer(x, y);
+    showClickRipple(x, y);
+  }
+
+  function showPointer(x, y) {
+    const position = normalizedToViewport(x, y);
+
+    if (!elements.laserPointer) {
+      return;
+    }
+
+    elements.laserPointer.style.left = position.x + "px";
+    elements.laserPointer.style.top = position.y + "px";
+    elements.laserPointer.classList.add("visible");
+
+    lastPointerTime = Date.now();
+
+    setText(elements.pointer, "x=" + x.toFixed(2) + " y=" + y.toFixed(2));
+  }
+
+  function hidePointer() {
+    if (elements.laserPointer) {
+      elements.laserPointer.classList.remove("visible");
+    }
+
+    setText(elements.pointer, "hidden");
+  }
+
+  function showClickRipple(x, y) {
+    const position = normalizedToViewport(x, y);
+
+    const ripple = document.createElement("div");
+    ripple.className = "click-ripple";
+    ripple.style.left = position.x + "px";
+    ripple.style.top = position.y + "px";
+
+    document.body.appendChild(ripple);
+
+    window.setTimeout(function () {
+      ripple.remove();
+    }, 650);
+  }
+
+  function normalizedToViewport(x, y) {
+    return {
+      x: x * window.innerWidth,
+      y: y * window.innerHeight
+    };
+  }
+
   function resetView() {
     const map = getMap();
 
@@ -281,7 +380,47 @@
       );
     }
 
+    if (command.type === "pointer") {
+      return (
+        "pointer visible=" +
+        command.visible +
+        " x=" +
+        formatNumber(command.x) +
+        " y=" +
+        formatNumber(command.y)
+      );
+    }
+
+    if (command.type === "click") {
+      return (
+        "click x=" +
+        formatNumber(command.x) +
+        " y=" +
+        formatNumber(command.y) +
+        " source=" +
+        (command.source || "")
+      );
+    }
+
+    if (command.type === "reset") {
+      return "reset source=" + (command.source || "");
+    }
+
     return JSON.stringify(command);
+  }
+
+  function formatNumber(value) {
+    if (value === null || value === undefined) {
+      return "-";
+    }
+
+    const numberValue = Number(value);
+
+    if (!Number.isFinite(numberValue)) {
+      return "-";
+    }
+
+    return numberValue.toFixed(2);
   }
 
   function setupKeyboardShortcuts() {
@@ -336,7 +475,11 @@
       if (ageMs > 3000 && socket && socket.readyState === WebSocket.OPEN) {
         setStatus("connected, no recent data", "status-warn");
       }
-    }, 1000);
+
+      if (lastPointerTime && Date.now() - lastPointerTime > POINTER_HIDE_TIMEOUT_MS) {
+        hidePointer();
+      }
+    }, 100);
   }
 
   setupKeyboardShortcuts();

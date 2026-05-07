@@ -35,18 +35,20 @@ def draw_overlay(
     mode_text = "ACTIVE" if gesture_output.active else "INACTIVE"
     command_text = format_command(gesture_output.command)
     pinch_text = format_pinch(gesture_output.pinch_ratio)
+    pointer_text = format_pointer(gesture_output)
 
     lines = [
         f"FPS: {data.fps:.1f}",
         f"Camera: {CAMERA.camera_index}",
         f"Resolution: {data.frame_width} x {data.frame_height}",
-        "Stage: 4.5 - browser camera preview",
+        "Stage: 4.6 - pointer + air tap",
         f"Mode: {mode_text}",
         f"Hands: {hand_result.hand_count}",
         f"Hand: {hand_text}",
         f"Detected: {gesture_output.detected_gesture} {gesture_output.confidence:.2f}",
         f"Stable: {gesture_output.stable_gesture}",
         f"Pinch distance: {pinch_text}",
+        f"Pointer: {pointer_text}",
         f"Command: {command_text}",
         f"WebSocket: {command_server.url}",
         f"WebSocket clients: {command_server.client_count}",
@@ -104,6 +106,20 @@ def format_command(command: dict | None) -> str:
     if command_type == "zoom":
         return f"zoom delta={command.get('delta')} source={source}"
 
+    if command_type == "pointer":
+        visible = command.get("visible", False)
+        x = command.get("x", "-")
+        y = command.get("y", "-")
+        return f"pointer visible={visible} x={x} y={y} source={source}"
+
+    if command_type == "click":
+        x = command.get("x", "-")
+        y = command.get("y", "-")
+        return f"click x={x} y={y} source={source}"
+
+    if command_type == "reset":
+        return f"reset source={source}"
+
     if command_type == "status":
         return "status"
 
@@ -115,6 +131,16 @@ def format_pinch(pinch_ratio: float | None) -> str:
         return "None"
 
     return f"{pinch_ratio:.1f}"
+
+
+def format_pointer(gesture_output: GestureOutput) -> str:
+    if not gesture_output.pointer_visible:
+        return "hidden"
+
+    if gesture_output.pointer_x is None or gesture_output.pointer_y is None:
+        return "hidden"
+
+    return f"x={gesture_output.pointer_x:.2f} y={gesture_output.pointer_y:.2f}"
 
 
 def make_status_command(
@@ -133,6 +159,17 @@ def make_status_command(
         "pinch_ratio": (
             round(gesture_output.pinch_ratio, 2)
             if gesture_output.pinch_ratio is not None
+            else None
+        ),
+        "pointer_visible": gesture_output.pointer_visible,
+        "pointer_x": (
+            round(gesture_output.pointer_x, 4)
+            if gesture_output.pointer_x is not None
+            else None
+        ),
+        "pointer_y": (
+            round(gesture_output.pointer_y, 4)
+            if gesture_output.pointer_y is not None
             else None
         ),
         "hands": hand_result.hand_count,
@@ -192,7 +229,6 @@ def main() -> None:
 
     previous_key: int | None = None
     last_status_time = 0.0
-    running = True
 
     try:
         command_server.start()
@@ -206,7 +242,7 @@ def main() -> None:
         if SHOW_OPENCV_WINDOW:
             cv2.namedWindow(CAMERA.window_name, cv2.WINDOW_NORMAL)
 
-        while running:
+        while True:
             control_key, browser_quit = get_control_key_and_quit(command_server)
 
             if browser_quit:
