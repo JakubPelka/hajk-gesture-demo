@@ -14,6 +14,7 @@ def draw_overlay(
     frame = data.frame
 
     hand_text = "None"
+
     if hand_result.detected:
         first_hand = hand_result.hands[0]
         hand_text = (
@@ -24,17 +25,19 @@ def draw_overlay(
 
     mode_text = "ACTIVE" if gesture_output.active else "INACTIVE"
     command_text = format_command(gesture_output.command)
+    pinch_text = format_pinch(gesture_output.pinch_ratio)
 
     lines = [
         f"FPS: {data.fps:.1f}",
         f"Camera: {CAMERA.camera_index}",
         f"Resolution: {data.frame_width} x {data.frame_height}",
-        "Stage: 2 - gesture debug",
+        "Stage: 2 - gesture debug + pinch zoom",
         f"Mode: {mode_text}",
         f"Hands: {hand_result.hand_count}",
         f"Hand: {hand_text}",
         f"Detected: {gesture_output.detected_gesture} {gesture_output.confidence:.2f}",
         f"Stable: {gesture_output.stable_gesture}",
+        f"Pinch distance: {pinch_text}",
         f"Command: {command_text}",
         "A: toggle active | ESC / Q: quit",
     ]
@@ -73,20 +76,29 @@ def format_command(command: dict | None) -> str:
         return "None"
 
     command_type = command.get("type", "unknown")
+    source = command.get("source", "")
 
     if command_type == "active":
-        return f"active={command.get('value')}"
+        return f"active={command.get('value')} source={source}"
 
     if command_type == "pan":
         dx = command.get("dx", 0)
         dy = command.get("dy", 0)
         strength = command.get("strength", 0)
-        return f"pan dx={dx} dy={dy} strength={strength}"
+
+        return f"pan dx={dx} dy={dy} strength={strength} source={source}"
 
     if command_type == "zoom":
-        return f"zoom delta={command.get('delta')}"
+        return f"zoom delta={command.get('delta')} source={source}"
 
     return str(command)
+
+
+def format_pinch(pinch_ratio: float | None) -> str:
+    if pinch_ratio is None:
+        return "None"
+
+    return f"{pinch_ratio:.1f}"
 
 
 def should_quit(key: int | None) -> bool:
