@@ -72,6 +72,9 @@ class GestureEngine:
         self._tap_start_time = 0.0
         self._last_tap_time = 0.0
 
+        self._thumb_up_activate_consumed = False
+        self._thumb_down_deactivate_consumed = False
+
     def update(
         self,
         hand_result,
@@ -79,7 +82,7 @@ class GestureEngine:
         frame_height: int,
         key: int | None = None,
     ) -> GestureOutput:
-        active_command = self._handle_keyboard(key)
+        active_command = self._handle_external_toggle(key)
 
         if not hand_result.detected:
             output = self._handle_no_hand()
@@ -130,7 +133,11 @@ class GestureEngine:
                 smoothed_pointer=smoothed_pointer,
             )
 
-        pointer_visible = self.active and stable_gesture == "Pointing_Up" and smoothed_pointer is not None
+        pointer_visible = (
+            self.active
+            and stable_gesture == "Pointing_Up"
+            and smoothed_pointer is not None
+        )
 
         return self._build_output(
             detected_gesture=detected_gesture,
@@ -141,20 +148,31 @@ class GestureEngine:
             pointer_visible=pointer_visible,
         )
 
-    def _handle_keyboard(self, key: int | None) -> dict[str, Any] | None:
+    def _handle_external_toggle(self, key: int | None) -> dict[str, Any] | None:
+        # Kept for browser button control only.
+        # Browser global keyboard shortcuts are removed in gesture-bridge.js.
         if key not in (ord("a"), ord("A")):
             return None
 
+        self._toggle_active()
+
+        return {
+            "type": "active",
+            "value": self.active,
+            "source": "browser_button",
+        }
+
+    def _toggle_active(self) -> None:
         self.active = not self.active
         self._reset_pan()
         self._reset_pointer()
         self._reset_air_tap()
 
-        return {
-            "type": "active",
-            "value": self.active,
-            "source": "keyboard",
-        }
+    def _set_active(self, value: bool) -> None:
+        self.active = value
+        self._reset_pan()
+        self._reset_pointer()
+        self._reset_air_tap()
 
     def _handle_no_hand(self) -> GestureOutput:
         now = time.perf_counter()
@@ -163,6 +181,8 @@ class GestureEngine:
             self._pending_gesture = "None"
             self._stable_gesture = "None"
             self._stable_count = 0
+            self._thumb_up_activate_consumed = False
+            self._thumb_down_deactivate_consumed = False
             self._reset_pan()
             self._reset_pointer()
             self._reset_air_tap()
@@ -198,6 +218,54 @@ class GestureEngine:
         raw_pointer: tuple[float, float] | None,
         smoothed_pointer: tuple[float, float] | None,
     ) -> dict[str, Any] | None:
+        if stable_gesture != "Thumb_Up":
+            self._thumb_up_activate_consumed = False
+
+        if stable_gesture != "Thumb_Down":
+            self._thumb_down_deactivate_consumed = False
+
+        if stable_gesture == "Thumb_Up":
+            self._reset_pan()
+            self._reset_pointer()
+            self._reset_air_tap()
+
+            if self._thumb_up_activate_consumed:
+                return None
+
+            self._thumb_up_activate_consumed = True
+
+            if self.active:
+                return None
+
+            self._set_active(True)
+
+            return {
+                "type": "active",
+                "value": True,
+                "source": "thumb_up_activate",
+            }
+
+        if stable_gesture == "Thumb_Down":
+            self._reset_pan()
+            self._reset_pointer()
+            self._reset_air_tap()
+
+            if self._thumb_down_deactivate_consumed:
+                return None
+
+            self._thumb_down_deactivate_consumed = True
+
+            if not self.active:
+                return None
+
+            self._set_active(False)
+
+            return {
+                "type": "active",
+                "value": False,
+                "source": "thumb_down_deactivate",
+            }
+
         if not self.active:
             self._reset_pan()
             self._reset_pointer()
@@ -208,6 +276,7 @@ class GestureEngine:
             self._reset_pan()
             self._reset_pointer()
             self._reset_air_tap()
+
             return {
                 "type": "pointer",
                 "visible": False,
@@ -259,21 +328,13 @@ class GestureEngine:
 
         self._reset_pan()
 
-        if stable_gesture == "Thumb_Up":
-            return self._make_zoom_command(delta=1, source="thumb_up")
-
-        if stable_gesture == "Thumb_Down":
-            return self._make_zoom_command(delta=-1, source="thumb_down")
-
-        if stable_gesture == "Victory":
-            return self._make_zoom_command(delta=-1, source="victory_fallback")
-
         if stable_gesture == "ILoveYou":
             return {
                 "type": "reset",
                 "source": "iloveyou",
             }
 
+        # Victory and other unused gestures are intentionally free for future features.
         return None
 
     def _make_pinch_zoom_command(
@@ -284,7 +345,13 @@ class GestureEngine:
         if pinch_ratio is None:
             return None
 
-        if stable_gesture == "Closed_Fist":
+        if stable_gesture in (
+            "Closed_Fist",
+            "Pointing_Up",
+            "Thumb_Up",
+            "Thumb_Down",
+            "ILoveYou",
+        ):
             return None
 
         if pinch_ratio <= self.config.pinch_zoom_in_threshold:

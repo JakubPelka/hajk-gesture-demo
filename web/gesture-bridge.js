@@ -25,6 +25,8 @@
     videoClients: document.getElementById("gesture-video-clients"),
     pointer: document.getElementById("gesture-pointer"),
     laserPointer: document.getElementById("laser-pointer"),
+    cameraPanel: document.getElementById("camera-panel"),
+    btnToggleCameraPanel: document.getElementById("btn-toggle-camera-panel"),
     btnToggleActive: document.getElementById("btn-toggle-active"),
     btnResetMap: document.getElementById("btn-reset-map"),
     btnQuit: document.getElementById("btn-quit")
@@ -357,7 +359,7 @@
     }
 
     if (command.type === "active") {
-      return "active=" + command.value;
+      return "active=" + command.value + " source=" + (command.source || "");
     }
 
     if (command.type === "pan") {
@@ -423,28 +425,25 @@
     return numberValue.toFixed(2);
   }
 
-  function setupKeyboardShortcuts() {
-    window.addEventListener("keydown", function (event) {
-      if (event.key === "a" || event.key === "A") {
-        sendControl("toggle_active");
-        event.preventDefault();
-        return;
-      }
+  function toggleCameraPanel() {
+    if (!elements.cameraPanel || !elements.btnToggleCameraPanel) {
+      return;
+    }
 
-      if (event.key === "r" || event.key === "R") {
-        resetView();
-        event.preventDefault();
-        return;
-      }
+    const isHidden = elements.cameraPanel.classList.toggle("hidden");
 
-      if (event.key === "q" || event.key === "Q" || event.key === "Escape") {
-        sendControl("quit");
-        event.preventDefault();
-      }
-    });
+    elements.btnToggleCameraPanel.textContent = isHidden
+      ? "Show camera"
+      : "Hide camera";
   }
 
   function setupButtons() {
+    if (elements.btnToggleCameraPanel) {
+      elements.btnToggleCameraPanel.addEventListener("click", function () {
+        toggleCameraPanel();
+      });
+    }
+
     if (elements.btnToggleActive) {
       elements.btnToggleActive.addEventListener("click", function () {
         sendControl("toggle_active");
@@ -482,7 +481,6 @@
     }, 100);
   }
 
-  setupKeyboardShortcuts();
   setupButtons();
   setupConnectionHealthCheck();
   connect();

@@ -41,7 +41,7 @@ def draw_overlay(
         f"FPS: {data.fps:.1f}",
         f"Camera: {CAMERA.camera_index}",
         f"Resolution: {data.frame_width} x {data.frame_height}",
-        "Stage: 4.6 - pointer + air tap",
+        "Stage: 4.7 - gesture-only activation",
         f"Mode: {mode_text}",
         f"Hands: {hand_result.hand_count}",
         f"Hand: {hand_text}",
@@ -54,7 +54,7 @@ def draw_overlay(
         f"WebSocket clients: {command_server.client_count}",
         f"Video stream: {video_server.url}",
         f"Video clients: {video_server.client_count}",
-        "Browser: A active | R reset map | Q/ESC quit",
+        "Gestures: Thumb_Up active | Thumb_Down inactive | ILoveYou reset",
     ]
 
     x = OVERLAY.margin_x

@@ -80,9 +80,28 @@
       color: #ff8c8c;
     }
 
-    .camera-panel {
+    .camera-toggle-button {
       position: absolute;
       top: 16px;
+      right: 16px;
+      z-index: 2100;
+      padding: 8px 12px;
+      border: 0;
+      border-radius: 6px;
+      cursor: pointer;
+      background: rgba(0, 0, 0, 0.78);
+      color: #ffffff;
+      font-weight: 700;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    }
+
+    .camera-toggle-button:hover {
+      background: rgba(30, 30, 30, 0.9);
+    }
+
+    .camera-panel {
+      position: absolute;
+      top: 58px;
       right: 16px;
       z-index: 1000;
       width: 420px;
@@ -92,6 +111,10 @@
       border-radius: 8px;
       font-size: 13px;
       box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    }
+
+    .camera-panel.hidden {
+      display: none;
     }
 
     .camera-panel h2 {
@@ -146,60 +169,60 @@
       border-radius: 6px;
       font-size: 12px;
     }
-	
-	.laser-pointer {
-	  position: absolute;
-	  left: 50%;
-	  top: 50%;
-	  z-index: 2000;
-	  width: 22px;
-	  height: 22px;
-	  margin-left: -11px;
-	  margin-top: -11px;
-	  pointer-events: none;
-	  border: 3px solid rgba(255, 40, 40, 0.95);
-	  border-radius: 50%;
-	  box-shadow:
-		0 0 10px rgba(255, 0, 0, 0.9),
-		0 0 22px rgba(255, 0, 0, 0.55);
-	  opacity: 0;
-	  transform: scale(0.7);
-	  transition:
-		opacity 80ms linear,
-		transform 80ms linear,
-		left 40ms linear,
-		top 40ms linear;
-	}
 
-	.laser-pointer.visible {
-	  opacity: 1;
-	  transform: scale(1);
-	}
+    .laser-pointer {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      z-index: 2000;
+      width: 22px;
+      height: 22px;
+      margin-left: -11px;
+      margin-top: -11px;
+      pointer-events: none;
+      border: 3px solid rgba(255, 40, 40, 0.95);
+      border-radius: 50%;
+      box-shadow:
+        0 0 10px rgba(255, 0, 0, 0.9),
+        0 0 22px rgba(255, 0, 0, 0.55);
+      opacity: 0;
+      transform: scale(0.7);
+      transition:
+        opacity 80ms linear,
+        transform 80ms linear,
+        left 40ms linear,
+        top 40ms linear;
+    }
 
-	.click-ripple {
-	  position: absolute;
-	  z-index: 1999;
-	  width: 16px;
-	  height: 16px;
-	  margin-left: -8px;
-	  margin-top: -8px;
-	  pointer-events: none;
-	  border: 3px solid rgba(255, 220, 0, 0.95);
-	  border-radius: 50%;
-	  animation: click-ripple-animation 550ms ease-out forwards;
-	}
+    .laser-pointer.visible {
+      opacity: 1;
+      transform: scale(1);
+    }
 
-	@keyframes click-ripple-animation {
-	  from {
-		opacity: 1;
-		transform: scale(0.6);
-	  }
+    .click-ripple {
+      position: absolute;
+      z-index: 1999;
+      width: 16px;
+      height: 16px;
+      margin-left: -8px;
+      margin-top: -8px;
+      pointer-events: none;
+      border: 3px solid rgba(255, 220, 0, 0.95);
+      border-radius: 50%;
+      animation: click-ripple-animation 550ms ease-out forwards;
+    }
 
-	  to {
-		opacity: 0;
-		transform: scale(4.5);
-	  }
-	}
+    @keyframes click-ripple-animation {
+      from {
+        opacity: 1;
+        transform: scale(0.6);
+      }
+
+      to {
+        opacity: 0;
+        transform: scale(4.5);
+      }
+    }
 
     code {
       color: #ffffff;
@@ -210,6 +233,7 @@
 <body>
   <div id="map"></div>
   <div id="laser-pointer" class="laser-pointer"></div>
+
   <div class="debug-panel">
     <h1>Hajk Gesture Demo</h1>
 
@@ -226,6 +250,11 @@
     <div class="debug-row">
       <span class="debug-label">Last command</span>
       <span id="gesture-last-command" class="debug-value">None</span>
+    </div>
+
+    <div class="debug-row">
+      <span class="debug-label">Pointer</span>
+      <span id="gesture-pointer" class="debug-value">hidden</span>
     </div>
 
     <div class="debug-row">
@@ -254,15 +283,17 @@
     </div>
 
     <div class="help">
-      Keyboard in browser:
+      Browser text input is safe: A/R/Q/ESC are not used as global shortcuts.
       <br />
-      <strong>A</strong> active/inactive,
-      <strong>R</strong> reset map,
-      <strong>Q</strong> or <strong>ESC</strong> quit Python app.
+      Use gestures or buttons for control.
     </div>
   </div>
 
-  <div class="camera-panel">
+  <button id="btn-toggle-camera-panel" class="camera-toggle-button" type="button">
+    Hide camera
+  </button>
+
+  <div id="camera-panel" class="camera-panel">
     <h2>Camera preview</h2>
     <img
       id="camera-preview"
@@ -272,13 +303,13 @@
     />
 
     <div class="button-row">
-      <button id="btn-toggle-active" type="button">Toggle active (A)</button>
-      <button id="btn-reset-map" type="button">Reset map (R)</button>
-      <button id="btn-quit" type="button">Quit Python (Q)</button>
+      <button id="btn-toggle-active" type="button">Toggle active</button>
+      <button id="btn-reset-map" type="button">Reset map</button>
+      <button id="btn-quit" type="button">Quit Python</button>
     </div>
 
     <div class="help">
-      Keep this browser tab focused if you want keyboard shortcuts to work.
+      Camera preview is mainly for checking hand position in the camera field of view.
     </div>
   </div>
 
