@@ -16,8 +16,8 @@ class GestureConfig:
     zoom_cooldown_sec: float = 0.7
     gesture_lost_timeout_sec: float = 0.5
 
-    pinch_zoom_in_threshold: float = 0.42
-    pinch_zoom_out_threshold: float = 1.15
+    pinch_zoom_in_threshold: float = 0.35
+    pinch_zoom_out_threshold: float = 1.30
     pinch_min_hand_scale: float = 0.03
 
 
