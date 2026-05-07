@@ -2,16 +2,24 @@ import cv2
 
 from camera import Camera, CameraFrame
 from config import CAMERA, OVERLAY
+from hand_tracker import HandTracker, HandTrackingResult
 
 
-def draw_overlay(data: CameraFrame) -> None:
+def draw_overlay(data: CameraFrame, hand_result: HandTrackingResult) -> None:
     frame = data.frame
+
+    hand_text = "None"
+    if hand_result.detected:
+        first_hand = hand_result.hands[0]
+        hand_text = f"{first_hand.handedness} {first_hand.confidence:.2f}"
 
     lines = [
         f"FPS: {data.fps:.1f}",
         f"Camera: {CAMERA.camera_index}",
         f"Resolution: {data.frame_width} x {data.frame_height}",
-        "Stage: 0 - camera preview",
+        "Stage: 1 - MediaPipe hand landmarks",
+        f"Hands: {hand_result.hand_count}",
+        f"Hand: {hand_text}",
         "ESC / Q: quit",
     ]
 
@@ -56,6 +64,7 @@ def should_quit(key: int) -> bool:
 
 def main() -> None:
     camera = Camera()
+    hand_tracker = HandTracker()
 
     try:
         camera.open()
@@ -63,7 +72,13 @@ def main() -> None:
 
         while True:
             frame_data = camera.read()
-            draw_overlay(frame_data)
+
+            hand_result = hand_tracker.process(
+                frame_bgr=frame_data.frame,
+                draw=True,
+            )
+
+            draw_overlay(frame_data, hand_result)
 
             cv2.imshow(CAMERA.window_name, frame_data.frame)
 
@@ -76,6 +91,7 @@ def main() -> None:
         print(f"ERROR: {error}")
 
     finally:
+        hand_tracker.close()
         camera.release()
         cv2.destroyAllWindows()
 
