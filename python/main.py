@@ -1,6 +1,9 @@
+import time
+
 import cv2
 
 from camera import Camera, CameraFrame
+from command_server import CommandServer
 from config import CAMERA, OVERLAY
 from gesture_state import GestureEngine, GestureOutput
 from hand_tracker import HandTracker, HandTrackingResult
@@ -10,6 +13,7 @@ def draw_overlay(
     data: CameraFrame,
     hand_result: HandTrackingResult,
     gesture_output: GestureOutput,
+    command_server: CommandServer,
 ) -> None:
     frame = data.frame
 
@@ -31,7 +35,7 @@ def draw_overlay(
         f"FPS: {data.fps:.1f}",
         f"Camera: {CAMERA.camera_index}",
         f"Resolution: {data.frame_width} x {data.frame_height}",
-        "Stage: 2 - gesture debug + pinch zoom",
+        "Stage: 3 - WebSocket command server",
         f"Mode: {mode_text}",
         f"Hands: {hand_result.hand_count}",
         f"Hand: {hand_text}",
@@ -39,6 +43,8 @@ def draw_overlay(
         f"Stable: {gesture_output.stable_gesture}",
         f"Pinch distance: {pinch_text}",
         f"Command: {command_text}",
+        f"WebSocket: {command_server.url}",
+        f"WebSocket clients: {command_server.client_count}",
         "A: toggle active | ESC / Q: quit",
     ]
 
@@ -91,6 +97,9 @@ def format_command(command: dict | None) -> str:
     if command_type == "zoom":
         return f"zoom delta={command.get('delta')} source={source}"
 
+    if command_type == "status":
+        return "status"
+
     return str(command)
 
 
@@ -99,6 +108,29 @@ def format_pinch(pinch_ratio: float | None) -> str:
         return "None"
 
     return f"{pinch_ratio:.1f}"
+
+
+def make_status_command(
+    data: CameraFrame,
+    hand_result: HandTrackingResult,
+    gesture_output: GestureOutput,
+    command_server: CommandServer,
+) -> dict:
+    return {
+        "type": "status",
+        "active": gesture_output.active,
+        "detected_gesture": gesture_output.detected_gesture,
+        "stable_gesture": gesture_output.stable_gesture,
+        "confidence": round(gesture_output.confidence, 2),
+        "pinch_ratio": (
+            round(gesture_output.pinch_ratio, 2)
+            if gesture_output.pinch_ratio is not None
+            else None
+        ),
+        "hands": hand_result.hand_count,
+        "fps": round(data.fps, 1),
+        "clients": command_server.client_count,
+    }
 
 
 def should_quit(key: int | None) -> bool:
@@ -127,10 +159,15 @@ def main() -> None:
     camera = Camera()
     hand_tracker = HandTracker()
     gesture_engine = GestureEngine()
+    command_server = CommandServer()
 
     previous_key: int | None = None
+    last_status_time = 0.0
 
     try:
+        command_server.start()
+        print(f"WebSocket server started: {command_server.url}")
+
         camera.open()
         cv2.namedWindow(CAMERA.window_name, cv2.WINDOW_NORMAL)
 
@@ -149,10 +186,27 @@ def main() -> None:
                 key=previous_key,
             )
 
+            if gesture_output.command is not None:
+                command_server.send_command(gesture_output.command)
+
+            now = time.perf_counter()
+
+            if now - last_status_time >= 0.5:
+                command_server.send_command(
+                    make_status_command(
+                        data=frame_data,
+                        hand_result=hand_result,
+                        gesture_output=gesture_output,
+                        command_server=command_server,
+                    )
+                )
+                last_status_time = now
+
             draw_overlay(
                 data=frame_data,
                 hand_result=hand_result,
                 gesture_output=gesture_output,
+                command_server=command_server,
             )
 
             cv2.imshow(CAMERA.window_name, frame_data.frame)
@@ -168,6 +222,7 @@ def main() -> None:
         print(f"ERROR: {error}")
 
     finally:
+        command_server.stop()
         hand_tracker.close()
         camera.release()
         cv2.destroyAllWindows()
