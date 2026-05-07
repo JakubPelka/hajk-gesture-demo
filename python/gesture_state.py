@@ -6,7 +6,7 @@ from typing import Any
 @dataclass(frozen=True)
 class GestureConfig:
     stable_frames: int = 5
-    min_confidence: float = 0.6
+    min_gesture_confidence: float = 0.55
 
     pan_smoothing: float = 0.35
     pan_deadzone_px: float = 4.0
@@ -44,13 +44,7 @@ class GestureEngine:
         self._smoothed_dx = 0.0
         self._smoothed_dy = 0.0
 
-    def toggle_active(self) -> None:
-        self.active = not self.active
-        self._reset_pan()
-
-    def set_active(self, value: bool) -> None:
-        self.active = value
-        self._reset_pan()
+        self._last_active_command_time = 0.0
 
     def update(
         self,
@@ -59,38 +53,58 @@ class GestureEngine:
         frame_height: int,
         key: int | None = None,
     ) -> GestureOutput:
-        if key in (ord("a"), ord("A")):
-            self.toggle_active()
+        active_command = self._handle_keyboard(key)
 
         if not hand_result.detected:
-            return self._handle_no_hand()
+            output = self._handle_no_hand()
+            if active_command:
+                output.command = active_command
+            return output
 
         hand = hand_result.hands[0]
 
-        if hand.confidence < self.config.min_confidence:
+        detected_gesture = hand.gesture or "None"
+        confidence = float(hand.gesture_confidence)
+
+        if confidence < self.config.min_gesture_confidence:
+            self._reset_pan()
             return self._build_output(
                 detected_gesture="LowConfidence",
-                confidence=hand.confidence,
-                command=None,
+                confidence=confidence,
+                command=active_command,
             )
 
         self._last_seen_time = time.perf_counter()
 
-        detected_gesture = self._classify_hand(hand.landmarks)
         stable_gesture = self._update_stability(detected_gesture)
 
-        command = self._make_command(
-            hand=hand,
-            stable_gesture=stable_gesture,
-            frame_width=frame_width,
-            frame_height=frame_height,
-        )
+        command = active_command
+
+        if command is None:
+            command = self._make_command(
+                hand=hand,
+                stable_gesture=stable_gesture,
+                frame_width=frame_width,
+                frame_height=frame_height,
+            )
 
         return self._build_output(
             detected_gesture=detected_gesture,
-            confidence=hand.confidence,
+            confidence=confidence,
             command=command,
         )
+
+    def _handle_keyboard(self, key: int | None) -> dict[str, Any] | None:
+        if key not in (ord("a"), ord("A")):
+            return None
+
+        self.active = not self.active
+        self._reset_pan()
+
+        return {
+            "type": "active",
+            "value": self.active,
+        }
 
     def _handle_no_hand(self) -> GestureOutput:
         now = time.perf_counter()
@@ -106,76 +120,6 @@ class GestureEngine:
             confidence=0.0,
             command=None,
         )
-
-    def _classify_hand(self, landmarks: list[tuple[float, float, float]]) -> str:
-        if len(landmarks) < 21:
-            return "Unknown"
-
-        index_open = self._finger_is_open(landmarks, tip=8, pip=6)
-        middle_open = self._finger_is_open(landmarks, tip=12, pip=10)
-        ring_open = self._finger_is_open(landmarks, tip=16, pip=14)
-        pinky_open = self._finger_is_open(landmarks, tip=20, pip=18)
-
-        thumb_vertical = self._thumb_vertical_direction(landmarks)
-
-        open_fingers = [
-            index_open,
-            middle_open,
-            ring_open,
-            pinky_open,
-        ]
-
-        open_count = sum(open_fingers)
-
-        if open_count >= 4:
-            return "Open_Palm"
-
-        if index_open and middle_open and not ring_open and not pinky_open:
-            return "Victory"
-
-        if open_count == 0:
-            if thumb_vertical == "up":
-                return "Thumb_Up"
-
-            if thumb_vertical == "down":
-                return "Thumb_Down"
-
-            return "Closed_Fist"
-
-        return "Unknown"
-
-    def _finger_is_open(
-        self,
-        landmarks: list[tuple[float, float, float]],
-        tip: int,
-        pip: int,
-    ) -> bool:
-        tip_y = landmarks[tip][1]
-        pip_y = landmarks[pip][1]
-
-        # In image coordinates, lower Y means "higher" in the frame.
-        return tip_y < pip_y - 0.025
-
-    def _thumb_vertical_direction(
-        self,
-        landmarks: list[tuple[float, float, float]],
-    ) -> str:
-        thumb_tip = landmarks[4]
-        thumb_mcp = landmarks[2]
-
-        dx = thumb_tip[0] - thumb_mcp[0]
-        dy = thumb_tip[1] - thumb_mcp[1]
-
-        if abs(dy) < abs(dx) * 1.2:
-            return "side"
-
-        if dy < -0.06:
-            return "up"
-
-        if dy > 0.06:
-            return "down"
-
-        return "neutral"
 
     def _update_stability(self, detected_gesture: str) -> str:
         if detected_gesture == self._pending_gesture:
@@ -197,6 +141,10 @@ class GestureEngine:
         frame_height: int,
     ) -> dict[str, Any] | None:
         if not self.active:
+            self._reset_pan()
+            return None
+
+        if stable_gesture == "Closed_Fist":
             self._reset_pan()
             return None
 
