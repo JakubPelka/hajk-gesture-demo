@@ -11,8 +11,11 @@ def draw_overlay(data: CameraFrame, hand_result: HandTrackingResult) -> None:
     hand_text = "None"
     if hand_result.detected:
         first_hand = hand_result.hands[0]
-        hand_text = f"{first_hand.handedness} {first_hand.confidence:.2f}"
-
+        hand_text = (
+            f"{first_hand.handedness} "
+            f"{first_hand.gesture} "
+            f"{first_hand.gesture_confidence:.2f}"
+        )
     lines = [
         f"FPS: {data.fps:.1f}",
         f"Camera: {CAMERA.camera_index}",
