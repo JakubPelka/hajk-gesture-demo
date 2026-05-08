@@ -224,6 +224,57 @@
       }
     }
 
+    .help-modal {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      z-index: 3000;
+      width: 440px;
+      max-width: calc(100vw - 48px);
+      max-height: calc(100vh - 48px);
+      padding: 16px;
+      background: rgba(0, 0, 0, 0.9);
+      color: #ffffff;
+      border-radius: 10px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+      transform: translate(-50%, -50%) scale(0.96);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 120ms ease-out, transform 120ms ease-out;
+      overflow-y: auto;
+    }
+
+    .help-modal.visible {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translate(-50%, -50%) scale(1);
+    }
+
+    .help-modal h2 {
+      margin: 0 0 10px 0;
+      font-size: 18px;
+    }
+
+    .help-modal h3 {
+      margin: 14px 0 6px 0;
+      font-size: 14px;
+    }
+
+    .help-modal ul {
+      margin: 6px 0 0 18px;
+      padding: 0;
+    }
+
+    .help-modal li {
+      margin-bottom: 5px;
+    }
+
+    .help-close-row {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 14px;
+    }
+
     code {
       color: #ffffff;
     }
@@ -233,6 +284,45 @@
 <body>
   <div id="map"></div>
   <div id="laser-pointer" class="laser-pointer"></div>
+
+  <div id="help-modal" class="help-modal">
+    <h2>Gesture control help</h2>
+
+    <p>
+      Use hand gestures in front of the camera to control the map.
+      The camera preview is mainly for checking hand position in the camera field of view.
+    </p>
+
+    <h3>Current gestures</h3>
+    <ul>
+      <li><strong>Thumb Up</strong> — activate gesture control</li>
+      <li><strong>Thumb Down</strong> — deactivate gesture control</li>
+      <li><strong>Open Palm</strong> — pan the map</li>
+      <li><strong>Pinch close</strong> — zoom in</li>
+      <li><strong>Pinch spread</strong> — zoom out</li>
+      <li><strong>Pointing Up</strong> — laser pointer</li>
+      <li><strong>Pointing Up + air tap</strong> — click ripple</li>
+      <li><strong>ILoveYou</strong> — reset map</li>
+      <li><strong>Phone gesture</strong> — open / close this help</li>
+    </ul>
+
+    <h3>Browser controls</h3>
+    <ul>
+      <li><strong>Show / Hide camera</strong> — toggle camera preview panel</li>
+      <li><strong>Switch camera</strong> — try next available camera</li>
+      <li><strong>Reset map</strong> — reset OpenLayers view</li>
+      <li><strong>Quit Python</strong> — stop local Python app</li>
+    </ul>
+
+    <p>
+      Keyboard shortcuts A/R/Q/ESC are intentionally disabled globally,
+      so future map text input remains safe.
+    </p>
+
+    <div class="help-close-row">
+      <button id="btn-close-help" type="button">Close help</button>
+    </div>
+  </div>
 
   <div class="debug-panel">
     <h1>Hajk Gesture Demo</h1>
@@ -310,6 +400,7 @@
     <div class="button-row">
       <button id="btn-toggle-active" type="button">Toggle active</button>
       <button id="btn-switch-camera" type="button">Switch camera</button>
+      <button id="btn-help" type="button">Help</button>
       <button id="btn-reset-map" type="button">Reset map</button>
       <button id="btn-quit" type="button">Quit Python</button>
     </div>
@@ -326,7 +417,7 @@
   <script src="https://cdn.jsdelivr.net/npm/ol@10.6.1/dist/ol.js"></script>
 
   <script>
-    const initialCenter = ol.proj.fromLonLat([12.075, 57.489]);
+    const initialCenter = ol.proj.fromLonLat([12.492, 57.492]);
 
     const map = new ol.Map({
       target: "map",
@@ -337,7 +428,7 @@
       ],
       view: new ol.View({
         center: initialCenter,
-        zoom: 15,
+        zoom: 11,
         rotation: 0
       })
     });

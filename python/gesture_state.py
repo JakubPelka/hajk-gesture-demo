@@ -7,7 +7,7 @@ from typing import Any
 @dataclass(frozen=True)
 class GestureConfig:
     stable_frames: int = 5
-    min_gesture_confidence: float = 0.35
+    min_gesture_confidence: float = 0.55
 
     pan_smoothing: float = 0.35
     pan_deadzone_px: float = 4.0
@@ -26,6 +26,8 @@ class GestureConfig:
     air_tap_max_duration_sec: float = 0.65
     air_tap_cooldown_sec: float = 0.8
     air_tap_max_side_movement: float = 0.055
+
+    phone_help_cooldown_sec: float = 1.2
 
 
 @dataclass
@@ -75,6 +77,9 @@ class GestureEngine:
         self._thumb_up_activate_consumed = False
         self._thumb_down_deactivate_consumed = False
 
+        self._phone_help_consumed = False
+        self._last_phone_help_time = 0.0
+
     def update(
         self,
         hand_result,
@@ -97,6 +102,7 @@ class GestureEngine:
         detected_gesture = hand.gesture or "None"
         confidence = float(hand.gesture_confidence)
         pinch_ratio = self._calculate_pinch_ratio(hand.landmarks)
+        phone_detected = self._is_phone_gesture(hand.landmarks)
 
         raw_pointer = self._get_index_pointer(hand.landmarks)
         smoothed_pointer = None
@@ -118,7 +124,8 @@ class GestureEngine:
 
         self._last_seen_time = time.perf_counter()
 
-        stable_gesture = self._update_stability(detected_gesture)
+        gesture_for_stability = "Phone" if phone_detected else detected_gesture
+        stable_gesture = self._update_stability(gesture_for_stability)
 
         command = active_command
 
@@ -183,6 +190,7 @@ class GestureEngine:
             self._stable_count = 0
             self._thumb_up_activate_consumed = False
             self._thumb_down_deactivate_consumed = False
+            self._phone_help_consumed = False
             self._reset_pan()
             self._reset_pointer()
             self._reset_air_tap()
@@ -218,6 +226,31 @@ class GestureEngine:
         raw_pointer: tuple[float, float] | None,
         smoothed_pointer: tuple[float, float] | None,
     ) -> dict[str, Any] | None:
+        if stable_gesture != "Phone":
+            self._phone_help_consumed = False
+
+        if stable_gesture == "Phone":
+            self._reset_pan()
+            self._reset_pointer()
+            self._reset_air_tap()
+
+            now = time.perf_counter()
+
+            if self._phone_help_consumed:
+                return None
+
+            if now - self._last_phone_help_time < self.config.phone_help_cooldown_sec:
+                return None
+
+            self._phone_help_consumed = True
+            self._last_phone_help_time = now
+
+            return {
+                "type": "help",
+                "action": "toggle",
+                "source": "phone_gesture",
+            }
+
         if stable_gesture != "Thumb_Up":
             self._thumb_up_activate_consumed = False
 
@@ -351,6 +384,7 @@ class GestureEngine:
             "Thumb_Up",
             "Thumb_Down",
             "ILoveYou",
+            "Phone",
         ):
             return None
 
@@ -455,6 +489,66 @@ class GestureEngine:
             return None
 
         return pinch_distance / hand_scale
+
+    def _is_phone_gesture(
+        self,
+        landmarks: list[tuple[float, float, float]],
+    ) -> bool:
+        if len(landmarks) < 21:
+            return False
+
+        thumb_open = self._thumb_is_extended(landmarks)
+        index_folded = self._finger_is_folded(landmarks, tip=8, pip=6)
+        middle_folded = self._finger_is_folded(landmarks, tip=12, pip=10)
+        ring_folded = self._finger_is_folded(landmarks, tip=16, pip=14)
+        pinky_open = self._finger_is_open(landmarks, tip=20, pip=18)
+
+        return (
+            thumb_open
+            and pinky_open
+            and index_folded
+            and middle_folded
+            and ring_folded
+        )
+
+    def _finger_is_open(
+        self,
+        landmarks: list[tuple[float, float, float]],
+        tip: int,
+        pip: int,
+    ) -> bool:
+        # In image coordinates, lower Y means higher in the frame.
+        return landmarks[tip][1] < landmarks[pip][1] - 0.025
+
+    def _finger_is_folded(
+        self,
+        landmarks: list[tuple[float, float, float]],
+        tip: int,
+        pip: int,
+    ) -> bool:
+        return landmarks[tip][1] > landmarks[pip][1] + 0.010
+
+    def _thumb_is_extended(
+        self,
+        landmarks: list[tuple[float, float, float]],
+    ) -> bool:
+        wrist = landmarks[0]
+        middle_mcp = landmarks[9]
+        index_mcp = landmarks[5]
+        pinky_mcp = landmarks[17]
+        thumb_tip = landmarks[4]
+
+        palm_depth = self._distance_2d(wrist, middle_mcp)
+        palm_width = self._distance_2d(index_mcp, pinky_mcp)
+        hand_scale = max(palm_depth, palm_width)
+
+        if hand_scale < self.config.pinch_min_hand_scale:
+            return False
+
+        thumb_to_middle = self._distance_2d(thumb_tip, middle_mcp)
+        thumb_extension_ratio = thumb_to_middle / hand_scale
+
+        return thumb_extension_ratio > 1.05
 
     def _get_index_pointer(
         self,

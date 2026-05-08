@@ -27,9 +27,12 @@
     pointer: document.getElementById("gesture-pointer"),
     laserPointer: document.getElementById("laser-pointer"),
     cameraPanel: document.getElementById("camera-panel"),
+    helpModal: document.getElementById("help-modal"),
     btnToggleCameraPanel: document.getElementById("btn-toggle-camera-panel"),
     btnToggleActive: document.getElementById("btn-toggle-active"),
     btnSwitchCamera: document.getElementById("btn-switch-camera"),
+    btnHelp: document.getElementById("btn-help"),
+    btnCloseHelp: document.getElementById("btn-close-help"),
     btnResetMap: document.getElementById("btn-reset-map"),
     btnQuit: document.getElementById("btn-quit")
   };
@@ -175,6 +178,11 @@
       return;
     }
 
+    if (command.type === "help") {
+      handleHelp(command);
+      return;
+    }
+
     if (command.type === "pointer") {
       handlePointer(command);
       return;
@@ -282,6 +290,22 @@
     showClickRipple(x, y);
   }
 
+  function handleHelp(command) {
+    const action = command.action || "toggle";
+
+    if (action === "show") {
+      showHelp();
+      return;
+    }
+
+    if (action === "hide") {
+      hideHelp();
+      return;
+    }
+
+    toggleHelp();
+  }
+
   function showPointer(x, y) {
     const position = normalizedToViewport(x, y);
 
@@ -326,6 +350,24 @@
       x: x * window.innerWidth,
       y: y * window.innerHeight
     };
+  }
+
+  function showHelp() {
+    if (elements.helpModal) {
+      elements.helpModal.classList.add("visible");
+    }
+  }
+
+  function hideHelp() {
+    if (elements.helpModal) {
+      elements.helpModal.classList.remove("visible");
+    }
+  }
+
+  function toggleHelp() {
+    if (elements.helpModal) {
+      elements.helpModal.classList.toggle("visible");
+    }
   }
 
   function resetView() {
@@ -419,6 +461,15 @@
       return "reset source=" + (command.source || "");
     }
 
+    if (command.type === "help") {
+      return (
+        "help action=" +
+        (command.action || "toggle") +
+        " source=" +
+        (command.source || "")
+      );
+    }
+
     if (command.type === "camera") {
       if (command.error) {
         return "camera error: " + command.error;
@@ -472,6 +523,18 @@
     if (elements.btnSwitchCamera) {
       elements.btnSwitchCamera.addEventListener("click", function () {
         sendControl("next_camera");
+      });
+    }
+
+    if (elements.btnHelp) {
+      elements.btnHelp.addEventListener("click", function () {
+        toggleHelp();
+      });
+    }
+
+    if (elements.btnCloseHelp) {
+      elements.btnCloseHelp.addEventListener("click", function () {
+        hideHelp();
       });
     }
 

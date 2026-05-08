@@ -42,7 +42,7 @@ def draw_overlay(
         f"FPS: {data.fps:.1f}",
         f"Camera: {data.camera_index}",
         f"Resolution: {data.frame_width} x {data.frame_height}",
-        "Stage: 4.7 - gesture-only activation",
+        "Stage: 4.8 - phone help gesture",
         f"Mode: {mode_text}",
         f"Hands: {hand_result.hand_count}",
         f"Hand: {hand_text}",
@@ -55,7 +55,7 @@ def draw_overlay(
         f"WebSocket clients: {command_server.client_count}",
         f"Video stream: {video_server.url}",
         f"Video clients: {video_server.client_count}",
-        "Gestures: Thumb_Up active | Thumb_Down inactive | ILoveYou reset",
+        "Gestures: Thumb_Up active | Thumb_Down inactive | Phone help",
     ]
 
     x = OVERLAY.margin_x
@@ -121,7 +121,13 @@ def format_command(command: dict | None) -> str:
     if command_type == "reset":
         return f"reset source={source}"
 
+    if command_type == "help":
+        return f"help action={command.get('action')} source={source}"
+
     if command_type == "camera":
+        if command.get("error"):
+            return f"camera error={command.get('error')}"
+
         return f"camera index={command.get('index')} source={source}"
 
     if command_type == "status":
