@@ -8,7 +8,7 @@ The project is currently a working MVP demo. The main purpose is to test the ful
 
 ## Current status
 
-Current stage: **Stage 4.5 — browser-based demo with embedded camera preview**.
+Current stage: **Stage 4.6 — browser demo with gesture-only activation, laser pointer, air tap click, and embedded camera preview**.
 
 The project currently supports:
 
@@ -18,10 +18,13 @@ The project currently supports:
 * WebSocket JSON commands from Python to the browser,
 * OpenLayers map control in the browser,
 * MJPEG camera preview embedded in the browser demo,
-* active / inactive mode,
-* debug overlays in both Python-generated camera preview and browser UI.
+* camera preview panel show/hide button,
+* gesture-based active / inactive mode,
+* laser pointer mode,
+* air tap click feedback,
+* debug overlays in both the Python-generated camera preview and the browser UI.
 
-The current demo already proves this flow:
+The current demo proves this flow:
 
 ```text
 webcam
@@ -55,30 +58,50 @@ The current demo can:
 
 1. Start the webcam from Python.
 2. Detect hand landmarks.
-3. Recognize basic MediaPipe gestures.
+3. Recognize built-in MediaPipe gestures.
 4. Show the camera preview directly in the browser.
-5. Connect browser and Python over WebSocket.
-6. Send gesture commands as JSON.
-7. Pan the OpenLayers map with an open hand.
-8. Zoom the map with gesture commands.
-9. Toggle active / inactive mode from the browser.
-10. Reset the map from the browser.
-11. Quit the Python app from the browser.
+5. Hide and show the camera preview panel.
+6. Connect browser and Python over WebSocket.
+7. Send gesture commands as JSON.
+8. Pan the OpenLayers map with an open hand.
+9. Zoom the map with pinch gestures.
+10. Activate and deactivate gesture control with thumb gestures.
+11. Show a laser pointer with the index finger.
+12. Show a click ripple with air tap.
+13. Reset the map with the `ILoveYou` gesture.
+14. Quit the Python app using the browser button.
 
 ## Current gesture mapping
 
 ```text
-Browser key A / button        → toggle active / inactive mode
-Open_Palm + hand movement     → pan map
-Closed_Fist                   → pause / stop pan commands
-Thumb_Up                      → zoom in fallback
-Thumb_Down                    → zoom out fallback
-Victory                       → zoom out fallback
-Pinch close                   → zoom in experimental
-Pinch spread                  → zoom out experimental
-Browser key R / button        → reset map view
-Browser key Q / ESC / button  → quit Python app
+Thumb_Up                 → activate gesture control
+Thumb_Down               → deactivate gesture control
+Open_Palm + movement     → pan map
+Pinch close              → zoom in
+Pinch spread             → zoom out
+Pointing_Up              → laser pointer
+Pointing_Up + air tap    → click ripple
+ILoveYou                 → reset map
+Closed_Fist              → pause / hide pointer
+Victory                  → free for future features
 ```
+
+## Important keyboard behavior
+
+Browser global keyboard shortcuts such as:
+
+```text
+A
+R
+Q
+ESC
+```
+
+are intentionally **not used** by the browser demo.
+
+This is important because future map tools may need normal text input, for example search fields, forms, layer filters, object attributes, or Hajk UI controls.
+
+Control should primarily happen through gestures or browser buttons.
 
 ## Important notes about gestures
 
@@ -106,7 +129,7 @@ Pinch is not a built-in MediaPipe gesture in this model. It is calculated manual
 
 The pinch value is normalized against palm size, so it should be more stable than a raw pixel distance.
 
-At the current stage, pinch zoom is experimental. It works, but the thresholds may need calibration for different cameras, lighting, hand sizes, and user distance from the camera.
+At the current stage, pinch zoom works well enough for the MVP, but thresholds may still need calibration for different cameras, lighting, hand sizes, and distance from the camera.
 
 ## Repository structure
 
@@ -189,6 +212,8 @@ Current responsibilities:
 * pan deadzone,
 * zoom cooldown,
 * pinch distance calculation,
+* laser pointer position,
+* air tap detection,
 * conversion from gestures to normalized JSON commands.
 
 ### `python/command_server.py`
@@ -223,6 +248,7 @@ Current responsibilities:
 * display WebSocket status,
 * display gesture status,
 * display embedded camera preview,
+* allow showing/hiding the camera panel,
 * expose buttons for active toggle, reset, and quit.
 
 ### `web/gesture-bridge.js`
@@ -236,7 +262,10 @@ Current responsibilities:
 * pan the OpenLayers view,
 * zoom the OpenLayers view,
 * reset the map,
-* send browser control messages back to Python.
+* display laser pointer,
+* display click ripple,
+* send browser control messages back to Python,
+* hide/show camera preview panel.
 
 ## Requirements
 
@@ -297,7 +326,7 @@ WebSocket server started: ws://127.0.0.1:8765
 Video stream started: http://127.0.0.1:8766/video
 ```
 
-Then open:
+Then open locally:
 
 ```text
 web/demo-openlayers.html
@@ -307,9 +336,12 @@ Expected browser result:
 
 * OpenLayers map is visible,
 * camera preview is visible in the right panel,
+* camera preview can be hidden/shown,
 * WebSocket status becomes connected,
 * gesture status updates in the left panel,
-* browser controls work.
+* laser pointer appears for `Pointing_Up`,
+* click ripple appears for air tap,
+* map reacts to pan, zoom, and reset commands.
 
 ## Manual setup on Windows
 
@@ -351,22 +383,18 @@ web/demo-openlayers.html
 
 ## Browser controls
 
-The browser tab should be focused for keyboard shortcuts to work.
+The browser UI includes buttons for:
 
 ```text
-A      toggle active / inactive mode
-R      reset map view
-Q      quit Python app
-ESC    quit Python app
-```
-
-The browser UI also includes buttons for:
-
-```text
+Show / hide camera panel
 Toggle active
 Reset map
 Quit Python
 ```
+
+The buttons are mainly for testing and fallback control. Normal demo control should be gesture-based.
+
+The browser intentionally does not use global keyboard shortcuts.
 
 ## JSON command examples
 
@@ -376,7 +404,15 @@ Quit Python
 {
   "type": "active",
   "value": true,
-  "source": "keyboard"
+  "source": "thumb_up_activate"
+}
+```
+
+```json
+{
+  "type": "active",
+  "value": false,
+  "source": "thumb_down_deactivate"
 }
 ```
 
@@ -398,7 +434,7 @@ Quit Python
 {
   "type": "zoom",
   "delta": 1,
-  "source": "thumb_up"
+  "source": "pinch_close"
 }
 ```
 
@@ -406,15 +442,39 @@ Quit Python
 {
   "type": "zoom",
   "delta": -1,
-  "source": "victory_fallback"
+  "source": "pinch_spread"
 }
 ```
 
+### Pointer
+
 ```json
 {
-  "type": "zoom",
-  "delta": 1,
-  "source": "pinch_close"
+  "type": "pointer",
+  "visible": true,
+  "x": 0.42,
+  "y": 0.31,
+  "source": "pointing_up"
+}
+```
+
+### Click
+
+```json
+{
+  "type": "click",
+  "x": 0.42,
+  "y": 0.31,
+  "source": "index_air_tap"
+}
+```
+
+### Reset
+
+```json
+{
+  "type": "reset",
+  "source": "iloveyou"
 }
 ```
 
@@ -428,6 +488,9 @@ Quit Python
   "stable_gesture": "Open_Palm",
   "confidence": 0.82,
   "pinch_ratio": 0.45,
+  "pointer_visible": false,
+  "pointer_x": null,
+  "pointer_y": null,
   "hands": 1,
   "fps": 27.4,
   "clients": 1,
@@ -469,6 +532,12 @@ zoom_cooldown_sec
 pinch_zoom_in_threshold
 pinch_zoom_out_threshold
 pinch_min_hand_scale
+pointer_smoothing
+air_tap_down_threshold
+air_tap_return_threshold
+air_tap_max_duration_sec
+air_tap_cooldown_sec
+air_tap_max_side_movement
 ```
 
 ### Browser map tuning
@@ -480,14 +549,16 @@ PAN_SENSITIVITY
 ZOOM_STEP
 ZOOM_ANIMATION_MS
 PAN_ANIMATION_MS
+POINTER_HIDE_TIMEOUT_MS
 ```
 
 Useful tuning examples:
 
 ```text
 Increase PAN_SENSITIVITY for faster map panning.
-Decrease ZOOM_STEP for less jumpy zoom.
-Increase ZOOM_ANIMATION_MS for smoother zoom animation.
+Decrease ZOOM_STEP for smaller zoom steps.
+Increase ZOOM_ANIMATION_MS for softer zoom animation.
+Increase POINTER_HIDE_TIMEOUT_MS if the pointer disappears too quickly.
 ```
 
 ## Current known limitations
@@ -496,8 +567,9 @@ This is still an MVP demo.
 
 Known limitations:
 
-* zoom is still more step-based than fully smooth,
-* pinch zoom needs calibration,
+* pinch zoom still uses threshold-based commands, not continuous zoom,
+* pinch thresholds may need calibration,
+* air tap may need calibration depending on camera and hand motion,
 * the current MVP is optimized for one hand,
 * lighting and background strongly affect gesture stability,
 * OpenCV / MediaPipe logs may appear in the console,
@@ -552,22 +624,39 @@ http://127.0.0.1:8766/video
 
 If that works, the video stream server is running and the issue is likely in the HTML page or browser cache.
 
+Try hard refresh:
+
+```text
+Ctrl + F5
+```
+
 ### Gestures are detected but map does not move
 
 Check:
 
 1. WebSocket status is connected.
-2. Browser shows active mode as `true`.
-3. Python/browser debug panel shows `Command: pan ...`.
-4. Open_Palm is stable enough.
+2. Active mode is true.
+3. Browser debug panel shows `Command: pan ...`.
+4. `Open_Palm` is stable enough.
 5. Browser tab is not frozen or disconnected.
+
+### Active mode does not change
+
+Use:
+
+```text
+Thumb_Up    → active true
+Thumb_Down  → active false
+```
+
+The browser button `Toggle active` can also be used as a fallback.
 
 ### Panning is too slow
 
 Increase in `web/gesture-bridge.js`:
 
 ```javascript
-const PAN_SENSITIVITY = 2.0;
+const PAN_SENSITIVITY = 2.5;
 ```
 
 Try higher values if needed:
@@ -587,7 +676,7 @@ const ZOOM_STEP = 0.25;
 Also consider increasing:
 
 ```javascript
-const ZOOM_ANIMATION_MS = 180;
+const ZOOM_ANIMATION_MS = 800;
 ```
 
 ### Pinch zoom triggers too often
@@ -602,6 +691,28 @@ pinch_zoom_out_threshold: float = 1.30
 If zoom in triggers too often, lower `pinch_zoom_in_threshold`.
 
 If zoom out almost never triggers, lower `pinch_zoom_out_threshold`.
+
+### Air tap does not trigger
+
+Lower in `python/gesture_state.py`:
+
+```python
+air_tap_down_threshold: float = 0.025
+```
+
+### Air tap triggers accidentally
+
+Increase in `python/gesture_state.py`:
+
+```python
+air_tap_down_threshold: float = 0.050
+```
+
+or reduce allowed side movement:
+
+```python
+air_tap_max_side_movement: float = 0.035
+```
 
 ## Development stages
 
@@ -667,6 +778,21 @@ Goal:
 * avoid switching between OpenCV window and browser,
 * control the demo mostly from one browser window.
 
+### Stage 4.6 — Gesture-only activation, pointer, air tap, and camera panel toggle
+
+Status: current.
+
+Goal:
+
+* use `Thumb_Up` for activation,
+* use `Thumb_Down` for deactivation,
+* use pinch as the only zoom mechanism,
+* keep `Victory` free for future actions,
+* support laser pointer with `Pointing_Up`,
+* support air tap click feedback,
+* allow the browser camera panel to be hidden or shown,
+* keep browser text input safe by removing global keyboard shortcuts.
+
 ### Stage 5 — Hajk bridge
 
 Status: not started.
@@ -681,13 +807,29 @@ Goal:
 
 Recommended next steps:
 
-1. Smooth zoom improvement.
+1. Improve smooth zoom behavior.
 2. Better pinch calibration.
-3. Optional config values for pan/zoom sensitivity.
+3. Better air tap calibration.
 4. Cleaner browser UI for demo presentation.
-5. Add browser-side indicator for command frequency.
-6. Add optional two-hand mode later.
-7. Create a first Hajk bridge experiment.
+5. Add presentation mode with minimal UI.
+6. Add optional config values for pan/zoom sensitivity.
+7. Add browser-side indicator for command frequency.
+8. Keep `Victory` available for future menu/tools action.
+9. Create a first Hajk bridge experiment.
+
+## Possible future extensions
+
+Possible future additions:
+
+* `Victory` gesture for opening a tool/menu panel,
+* two-finger air tap for menu action,
+* optional head tracking as a separate module,
+* gesture profile configuration,
+* browser-side settings panel,
+* full-screen presentation mode,
+* Hajk plugin bridge.
+
+Head tracking is intentionally not part of the current MVP. It should be treated as a separate future module, not mixed into the current hand gesture engine yet.
 
 ## Hajk integration plan
 

@@ -19,6 +19,7 @@
     wsUrl: document.getElementById("gesture-ws-url"),
     lastCommand: document.getElementById("gesture-last-command"),
     active: document.getElementById("gesture-active"),
+    cameraIndex: document.getElementById("gesture-camera-index"),
     detected: document.getElementById("gesture-detected"),
     stable: document.getElementById("gesture-stable"),
     fps: document.getElementById("gesture-fps"),
@@ -28,6 +29,7 @@
     cameraPanel: document.getElementById("camera-panel"),
     btnToggleCameraPanel: document.getElementById("btn-toggle-camera-panel"),
     btnToggleActive: document.getElementById("btn-toggle-active"),
+    btnSwitchCamera: document.getElementById("btn-switch-camera"),
     btnResetMap: document.getElementById("btn-reset-map"),
     btnQuit: document.getElementById("btn-quit")
   };
@@ -124,6 +126,7 @@
 
     if (command.type === "status") {
       setText(elements.active, command.active);
+      setText(elements.cameraIndex, command.camera_index ?? "-");
       setText(elements.detected, command.detected_gesture || "None");
       setText(elements.stable, command.stable_gesture || "None");
       setText(elements.fps, command.fps ?? "-");
@@ -141,6 +144,14 @@
 
     if (command.type === "active") {
       setText(elements.active, command.value);
+    }
+
+    if (command.type === "camera") {
+      if (command.error) {
+        setText(elements.lastCommand, "camera error: " + command.error);
+      } else {
+        setText(elements.cameraIndex, command.index ?? "-");
+      }
     }
   }
 
@@ -408,6 +419,14 @@
       return "reset source=" + (command.source || "");
     }
 
+    if (command.type === "camera") {
+      if (command.error) {
+        return "camera error: " + command.error;
+      }
+
+      return "camera index=" + command.index + " source=" + (command.source || "");
+    }
+
     return JSON.stringify(command);
   }
 
@@ -447,6 +466,12 @@
     if (elements.btnToggleActive) {
       elements.btnToggleActive.addEventListener("click", function () {
         sendControl("toggle_active");
+      });
+    }
+
+    if (elements.btnSwitchCamera) {
+      elements.btnSwitchCamera.addEventListener("click", function () {
+        sendControl("next_camera");
       });
     }
 

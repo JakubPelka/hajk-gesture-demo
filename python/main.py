@@ -11,6 +11,7 @@ from video_stream_server import VideoStreamServer
 
 
 SHOW_OPENCV_WINDOW = False
+MAX_CAMERA_INDEX = 5
 
 
 def draw_overlay(
@@ -39,7 +40,7 @@ def draw_overlay(
 
     lines = [
         f"FPS: {data.fps:.1f}",
-        f"Camera: {CAMERA.camera_index}",
+        f"Camera: {data.camera_index}",
         f"Resolution: {data.frame_width} x {data.frame_height}",
         "Stage: 4.7 - gesture-only activation",
         f"Mode: {mode_text}",
@@ -120,6 +121,9 @@ def format_command(command: dict | None) -> str:
     if command_type == "reset":
         return f"reset source={source}"
 
+    if command_type == "camera":
+        return f"camera index={command.get('index')} source={source}"
+
     if command_type == "status":
         return "status"
 
@@ -153,6 +157,7 @@ def make_status_command(
     return {
         "type": "status",
         "active": gesture_output.active,
+        "camera_index": data.camera_index,
         "detected_gesture": gesture_output.detected_gesture,
         "stable_gesture": gesture_output.stable_gesture,
         "confidence": round(gesture_output.confidence, 2),
@@ -179,7 +184,10 @@ def make_status_command(
     }
 
 
-def get_control_key_and_quit(command_server: CommandServer) -> tuple[int | None, bool]:
+def handle_browser_controls(
+    command_server: CommandServer,
+    camera: Camera,
+) -> tuple[int | None, bool]:
     control_key = None
     should_quit_app = False
 
@@ -191,6 +199,30 @@ def get_control_key_and_quit(command_server: CommandServer) -> tuple[int | None,
 
         if action == "toggle_active":
             control_key = ord("A")
+
+        elif action == "next_camera":
+            try:
+                new_index = camera.switch_to_next(MAX_CAMERA_INDEX)
+                print(f"Switched to camera index {new_index}")
+
+                command_server.send_command(
+                    {
+                        "type": "camera",
+                        "index": new_index,
+                        "source": "browser_button",
+                    }
+                )
+
+            except RuntimeError as error:
+                print(f"Camera switch failed: {error}")
+
+                command_server.send_command(
+                    {
+                        "type": "camera",
+                        "error": str(error),
+                        "source": "browser_button",
+                    }
+                )
 
         elif action == "quit":
             should_quit_app = True
@@ -243,7 +275,10 @@ def main() -> None:
             cv2.namedWindow(CAMERA.window_name, cv2.WINDOW_NORMAL)
 
         while True:
-            control_key, browser_quit = get_control_key_and_quit(command_server)
+            control_key, browser_quit = handle_browser_controls(
+                command_server=command_server,
+                camera=camera,
+            )
 
             if browser_quit:
                 break
