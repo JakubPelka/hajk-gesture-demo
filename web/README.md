@@ -1,232 +1,244 @@
-import time
+# Web demo
 
-import cv2
+Browser-side demo for the Hajk Gesture Control proof of concept.
 
-from camera import Camera, CameraFrame
-from command_server import CommandServer
-from config import CAMERA, OVERLAY
-from gesture_state import GestureEngine, GestureOutput
-from hand_tracker import HandTracker, HandTrackingResult
+This folder contains the OpenLayers test page and the browser bridge that receives gesture commands from the Python app.
 
+The purpose of this folder is to test the full gesture-control chain before connecting anything to Hajk.
 
-def draw_overlay(
-    data: CameraFrame,
-    hand_result: HandTrackingResult,
-    gesture_output: GestureOutput,
-    command_server: CommandServer,
-) -> None:
-    frame = data.frame
+## Files
 
-    hand_text = "None"
+```text
+web/
+  demo-openlayers.html
+  gesture-bridge.js
+  README.md
+```
 
-    if hand_result.detected:
-        first_hand = hand_result.hands[0]
-        hand_text = (
-            f"{first_hand.handedness} "
-            f"{first_hand.gesture} "
-            f"{first_hand.gesture_confidence:.2f}"
-        )
+## What this demo does
 
-    mode_text = "ACTIVE" if gesture_output.active else "INACTIVE"
-    command_text = format_command(gesture_output.command)
-    pinch_text = format_pinch(gesture_output.pinch_ratio)
+The browser demo:
 
-    lines = [
-        f"FPS: {data.fps:.1f}",
-        f"Camera: {CAMERA.camera_index}",
-        f"Resolution: {data.frame_width} x {data.frame_height}",
-        "Stage: 3 - WebSocket command server",
-        f"Mode: {mode_text}",
-        f"Hands: {hand_result.hand_count}",
-        f"Hand: {hand_text}",
-        f"Detected: {gesture_output.detected_gesture} {gesture_output.confidence:.2f}",
-        f"Stable: {gesture_output.stable_gesture}",
-        f"Pinch distance: {pinch_text}",
-        f"Command: {command_text}",
-        f"WebSocket: {command_server.url}",
-        f"WebSocket clients: {command_server.client_count}",
-        "A: toggle active | ESC / Q: quit",
-    ]
+* displays a simple OpenLayers map,
+* connects to the Python WebSocket server,
+* receives gesture commands as JSON,
+* pans and zooms the map,
+* shows a laser pointer,
+* shows a click ripple for air tap,
+* embeds the Python camera preview as an MJPEG stream,
+* lets the camera panel be shown or hidden.
 
-    x = OVERLAY.margin_x
-    y = OVERLAY.margin_y
+## Required Python services
 
-    for index, text in enumerate(lines):
-        line_y = y + index * OVERLAY.line_height
+The Python app starts two local services:
 
-        cv2.putText(
-            frame,
-            text,
-            (x, line_y),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            OVERLAY.font_scale,
-            (0, 0, 0),
-            OVERLAY.thickness + 2,
-            cv2.LINE_AA,
-        )
+```text
+WebSocket command server:
+ws://127.0.0.1:8765
+```
 
-        cv2.putText(
-            frame,
-            text,
-            (x, line_y),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            OVERLAY.font_scale,
-            (255, 255, 255),
-            OVERLAY.thickness,
-            cv2.LINE_AA,
-        )
+```text
+Camera preview stream:
+http://127.0.0.1:8766/video
+```
 
+## How to use
 
-def format_command(command: dict | None) -> str:
-    if command is None:
-        return "None"
+From the repository root, start the Python app:
 
-    command_type = command.get("type", "unknown")
-    source = command.get("source", "")
+```bat
+start.bat
+```
 
-    if command_type == "active":
-        return f"active={command.get('value')} source={source}"
+Expected console output:
 
-    if command_type == "pan":
-        dx = command.get("dx", 0)
-        dy = command.get("dy", 0)
-        strength = command.get("strength", 0)
+```text
+WebSocket server started: ws://127.0.0.1:8765
+Video stream started: http://127.0.0.1:8766/video
+```
 
-        return f"pan dx={dx} dy={dy} strength={strength} source={source}"
+Then open locally:
 
-    if command_type == "zoom":
-        return f"zoom delta={command.get('delta')} source={source}"
+```text
+web/demo-openlayers.html
+```
 
-    if command_type == "status":
-        return "status"
+Do not open the GitHub-rendered file in the browser for testing. The demo expects the Python services to be running on the same local computer.
 
-    return str(command)
+## Expected browser result
 
+The page should show:
 
-def format_pinch(pinch_ratio: float | None) -> str:
-    if pinch_ratio is None:
-        return "None"
+* OpenLayers map,
+* WebSocket connection status,
+* active/inactive status,
+* detected and stable gesture names,
+* FPS value from Python,
+* video client count,
+* optional camera preview panel,
+* laser pointer when `Pointing_Up` is active.
 
-    return f"{pinch_ratio:.1f}"
+## Current gesture mapping
 
+```text
+Thumb_Up       → activate gesture control
+Thumb_Down     → deactivate gesture control
+Open_Palm      → pan map
+Pinch close    → zoom in
+Pinch spread   → zoom out
+Pointing_Up    → laser pointer
+Air tap        → click ripple
+ILoveYou       → reset map
+Closed_Fist    → pause / hide pointer
+```
 
-def make_status_command(
-    data: CameraFrame,
-    hand_result: HandTrackingResult,
-    gesture_output: GestureOutput,
-    command_server: CommandServer,
-) -> dict:
-    return {
-        "type": "status",
-        "active": gesture_output.active,
-        "detected_gesture": gesture_output.detected_gesture,
-        "stable_gesture": gesture_output.stable_gesture,
-        "confidence": round(gesture_output.confidence, 2),
-        "pinch_ratio": (
-            round(gesture_output.pinch_ratio, 2)
-            if gesture_output.pinch_ratio is not None
-            else None
-        ),
-        "hands": hand_result.hand_count,
-        "fps": round(data.fps, 1),
-        "clients": command_server.client_count,
-    }
+Browser keyboard shortcuts such as `A`, `R`, `Q`, and `ESC` are intentionally not used as global shortcuts, so text input inside the map UI remains safe.
 
+## Browser buttons
 
-def should_quit(key: int | None) -> bool:
-    if key is None:
-        return False
+The demo includes buttons for:
 
-    if key == 27:
-        return True
+```text
+Show / hide camera panel
+Toggle active
+Reset map
+Quit Python
+```
 
-    if key in (ord("q"), ord("Q")):
-        return True
+The buttons are mainly for testing and fallback control. Normal demo control should be gesture-based.
 
-    return False
+## Camera panel
 
+The camera panel is mainly for checking where the hand is in the camera field of view.
 
-def normalize_key(raw_key: int) -> int | None:
-    key = raw_key & 0xFF
+The debug text drawn into the camera frame is not intended to be read comfortably inside the small browser preview.
 
-    if key == 255:
-        return None
+Use the browser debug panel for readable status values.
 
-    return key
+## JSON command examples
 
+### Pan
 
-def main() -> None:
-    camera = Camera()
-    hand_tracker = HandTracker()
-    gesture_engine = GestureEngine()
-    command_server = CommandServer()
+```json
+{
+  "type": "pan",
+  "dx": 12,
+  "dy": -6,
+  "strength": 0.8,
+  "source": "open_palm"
+}
+```
 
-    previous_key: int | None = None
-    last_status_time = 0.0
+### Zoom
 
-    try:
-        command_server.start()
-        print(f"WebSocket server started: {command_server.url}")
+```json
+{
+  "type": "zoom",
+  "delta": 1,
+  "source": "pinch_close"
+}
+```
 
-        camera.open()
-        cv2.namedWindow(CAMERA.window_name, cv2.WINDOW_NORMAL)
+```json
+{
+  "type": "zoom",
+  "delta": -1,
+  "source": "pinch_spread"
+}
+```
 
-        while True:
-            frame_data = camera.read()
+### Pointer
 
-            hand_result = hand_tracker.process(
-                frame_bgr=frame_data.frame,
-                draw=True,
-            )
+```json
+{
+  "type": "pointer",
+  "visible": true,
+  "x": 0.42,
+  "y": 0.31,
+  "source": "pointing_up"
+}
+```
 
-            gesture_output = gesture_engine.update(
-                hand_result=hand_result,
-                frame_width=frame_data.frame_width,
-                frame_height=frame_data.frame_height,
-                key=previous_key,
-            )
+### Click
 
-            if gesture_output.command is not None:
-                command_server.send_command(gesture_output.command)
+```json
+{
+  "type": "click",
+  "x": 0.42,
+  "y": 0.31,
+  "source": "index_air_tap"
+}
+```
 
-            now = time.perf_counter()
+### Reset
 
-            if now - last_status_time >= 0.5:
-                command_server.send_command(
-                    make_status_command(
-                        data=frame_data,
-                        hand_result=hand_result,
-                        gesture_output=gesture_output,
-                        command_server=command_server,
-                    )
-                )
-                last_status_time = now
+```json
+{
+  "type": "reset",
+  "source": "iloveyou"
+}
+```
 
-            draw_overlay(
-                data=frame_data,
-                hand_result=hand_result,
-                gesture_output=gesture_output,
-                command_server=command_server,
-            )
+## Map tuning
 
-            cv2.imshow(CAMERA.window_name, frame_data.frame)
+Important tuning values are in `gesture-bridge.js`:
 
-            current_key = normalize_key(cv2.waitKey(1))
+```text
+PAN_SENSITIVITY
+ZOOM_STEP
+ZOOM_ANIMATION_MS
+PAN_ANIMATION_MS
+POINTER_HIDE_TIMEOUT_MS
+```
 
-            if should_quit(current_key):
-                break
+Useful changes:
 
-            previous_key = current_key
+```text
+Increase PAN_SENSITIVITY for faster panning.
+Decrease ZOOM_STEP for smaller zoom steps.
+Increase ZOOM_ANIMATION_MS for softer zoom animation.
+```
 
-    except RuntimeError as error:
-        print(f"ERROR: {error}")
+## Troubleshooting
 
-    finally:
-        command_server.stop()
-        hand_tracker.close()
-        camera.release()
-        cv2.destroyAllWindows()
+### Camera preview does not show
 
+Open this directly in the browser:
 
-if __name__ == "__main__":
-    main()
+```text
+http://127.0.0.1:8766/video
+```
+
+If it works directly but not in `demo-openlayers.html`, refresh the demo page with cache bypass:
+
+```text
+Ctrl + F5
+```
+
+### WebSocket does not connect
+
+Check that Python printed:
+
+```text
+WebSocket server started: ws://127.0.0.1:8765
+```
+
+Then reload the browser demo.
+
+### Map does not react
+
+Check:
+
+1. WebSocket status is connected.
+2. Active mode is true.
+3. Browser debug panel shows gesture status.
+4. Last command changes when gestures are performed.
+5. The map page is opened locally, not through GitHub.
+
+## Notes for future Hajk integration
+
+This web demo creates its own OpenLayers map.
+
+The future Hajk bridge should reuse the same command logic, but instead of creating a map, it should use the OpenLayers map instance already available inside Hajk.
+
+The current demo is therefore a safe test environment before real Hajk integration.
