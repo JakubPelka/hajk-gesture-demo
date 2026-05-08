@@ -7,7 +7,7 @@ from typing import Any
 @dataclass(frozen=True)
 class GestureConfig:
     stable_frames: int = 5
-    min_gesture_confidence: float = 0.55
+    min_gesture_confidence: float = 0.35
 
     pan_smoothing: float = 0.35
     pan_deadzone_px: float = 4.0
